@@ -141,6 +141,61 @@ function goHome() {
   phase.value = "intro";
 }
 
+const SITE_URL = "https://ubershmekel.github.io/eye-brain-hand/";
+const canShare = typeof navigator !== "undefined" && !!navigator.share;
+const copyLabel = ref("📋 Copy");
+
+function resultsText(): string {
+  const s = summary.value;
+  if (!s) return "";
+  return (
+    `Eye 👁 Brain 🧠 Hand ✋ snapshot:\n` +
+    `⏱ ${s.medianDelayMs} ms median tap delay\n` +
+    `🎯 ${s.medianDistancePx} px median distance from center\n` +
+    `✅ ${s.hits}/${s.totalTaps} correct\n` +
+    `Get your snapshot: ${SITE_URL}`
+  );
+}
+
+async function shareResults() {
+  if (!summary.value) return;
+  try {
+    await navigator.share({ text: resultsText() });
+  } catch {
+    // The user closed the share sheet; nothing to do.
+  }
+}
+
+function legacyCopy(text: string): boolean {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  ta.remove();
+  return ok;
+}
+
+async function copyResults() {
+  if (!summary.value) return;
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(resultsText());
+    ok = true;
+  } catch {
+    ok = legacyCopy(resultsText());
+  }
+  copyLabel.value = ok ? "✅ Copied!" : "Copy failed";
+  setTimeout(() => (copyLabel.value = "📋 Copy"), 2000);
+}
+
 function clearHistory() {
   if (!confirm("Delete all saved sessions?")) return;
   localStorage.removeItem("eye-brain-hand-history");
@@ -152,6 +207,7 @@ function clearHistory() {
   <main class="app">
     <!-- Intro -->
     <section v-if="phase === 'intro'" class="screen intro">
+      <img class="logo" src="/favicon.svg" alt="" width="72" height="72" />
       <h1>Eye 👁 Brain 🧠 Hand ✋</h1>
       <p>
         Three letters appear at the top. Tap them on the grid below,
@@ -276,6 +332,10 @@ function clearHistory() {
 
       <div class="actions">
         <button class="primary" @click="startGame">Play again</button>
+        <button v-if="canShare" class="ghost" @click="shareResults">
+          📤 Share
+        </button>
+        <button class="ghost" @click="copyResults">{{ copyLabel }}</button>
         <button class="ghost" @click="goHome">🏠 Home</button>
       </div>
 
@@ -321,6 +381,10 @@ function clearHistory() {
   margin: 0 auto;
   width: 100%;
   overflow-y: auto;
+}
+
+.logo {
+  margin-top: 24px;
 }
 
 h1 {
@@ -471,11 +535,9 @@ button.ghost {
   pointer-events: none;
   background:
     linear-gradient(var(--tick), var(--tick)) top center / 2px 7px no-repeat,
-    linear-gradient(var(--tick), var(--tick)) bottom center / 2px 7px
-      no-repeat,
+    linear-gradient(var(--tick), var(--tick)) bottom center / 2px 7px no-repeat,
     linear-gradient(var(--tick), var(--tick)) left center / 7px 2px no-repeat,
-    linear-gradient(var(--tick), var(--tick)) right center / 7px 2px
-      no-repeat;
+    linear-gradient(var(--tick), var(--tick)) right center / 7px 2px no-repeat;
 }
 
 /* ---- Results & tables ---- */
