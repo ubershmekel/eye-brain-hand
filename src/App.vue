@@ -137,6 +137,10 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString() + " " + d.toLocaleTimeString();
 }
 
+function goHome() {
+  phase.value = "intro";
+}
+
 function clearHistory() {
   if (!confirm("Delete all saved sessions?")) return;
   localStorage.removeItem("eye-brain-hand-history");
@@ -151,7 +155,7 @@ function clearHistory() {
       <h1>Eye 👁 Brain 🧠 Hand ✋</h1>
       <p>
         Three letters appear at the top. Tap them on the grid below,
-        <strong>in order</strong>, aiming for the small square at the center of
+        <strong>in order</strong>, aiming for the crosshair-marked center of
         each cell. You'll do {{ ROUNDS }} rounds of
         {{ TARGETS_PER_ROUND }} letters.
       </p>
@@ -211,7 +215,7 @@ function clearHistory() {
         <button v-for="(char, i) in displayChars" :key="i" class="cell" :data-char="char"
           @pointerdown="onCellTap(char, $event)">
           <span class="glyph">{{ char }}</span>
-          <span class="dot"></span>
+          <span class="cross"></span>
         </button>
       </div>
     </section>
@@ -270,7 +274,10 @@ function clearHistory() {
         </tbody>
       </table>
 
-      <button class="primary" @click="startGame">Play again</button>
+      <div class="actions">
+        <button class="primary" @click="startGame">Play again</button>
+        <button class="ghost" @click="goHome">🏠 Home</button>
+      </div>
 
       <div v-if="pastSessions.length > 1" class="history">
         <h2>Past sessions</h2>
@@ -430,7 +437,7 @@ button.ghost {
   opacity: 0.3;
 }
 
-.grid.scrambling .dot {
+.grid.scrambling .cross {
   opacity: 0.4;
 }
 
@@ -441,8 +448,8 @@ button.ghost {
   border-radius: 8px;
   background: var(--cell);
   color: var(--text);
-  font-size: clamp(1.1rem, 5.5vw, 1.7rem);
-  font-weight: 600;
+  font-size: clamp(1.4rem, 6.5vw, 2rem);
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -452,19 +459,40 @@ button.ghost {
 }
 
 .glyph {
-  opacity: 0.85;
+  color: #fff;
 }
 
-.dot {
+/* Four tick marks at the tile-edge midpoints, pointing at the center.
+   The center itself stays clear so the letter is never obscured. */
+.cross {
+  --tick: rgba(255, 183, 77, 0.6);
   position: absolute;
-  width: 3px;
-  height: 3px;
-  left: calc(50% - 1.5px);
-  top: calc(50% - 1.5px);
-  background: var(--accent);
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--tick), var(--tick)) top center / 2px 7px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) bottom center / 2px 7px
+      no-repeat,
+    linear-gradient(var(--tick), var(--tick)) left center / 7px 2px no-repeat,
+    linear-gradient(var(--tick), var(--tick)) right center / 7px 2px
+      no-repeat;
 }
 
 /* ---- Results & tables ---- */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions .ghost {
+  margin-top: 16px;
+  padding: 14px 24px;
+  font-size: 1rem;
+  border-radius: 12px;
+  color: var(--text);
+}
+
 .stat-cards {
   display: flex;
   gap: 10px;
