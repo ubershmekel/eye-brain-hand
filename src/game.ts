@@ -33,6 +33,52 @@ export interface TapRecord {
   distancePct: number;
   /** Whether the tap landed inside the expected cell */
   hit: boolean;
+  /** PointerEvent.pointerType: "mouse", "touch", "pen", or "" */
+  pointerType: string;
+}
+
+/** What the player used for the whole session. */
+export type InputKind = "mouse" | "touch" | "pen" | "mixed" | "unknown";
+
+export function inputLabel(input: string | undefined): string {
+  switch (input) {
+    case "mouse":
+      return "🖱️ mouse";
+    case "touch":
+      return "👆 touch";
+    case "pen":
+      return "🖊️ pen";
+    case "mixed":
+      return "🖱️👆 mixed";
+    default:
+      return "❓ unknown";
+  }
+}
+
+/** Inline phrase with the right verb, e.g. "median 🖱️ mouse click delay". */
+export function inputPhrase(input: string | undefined): string {
+  switch (input) {
+    case "mouse":
+      return "🖱️ mouse click";
+    case "touch":
+      return "👆 finger tap";
+    case "pen":
+      return "🖊️ pen tap";
+    case "mixed":
+      return "🖱️👆 mixed input";
+    default:
+      return "❓ tap";
+  }
+}
+
+export function dominantInput(taps: TapRecord[]): InputKind {
+  const kinds = new Set(taps.map((t) => t.pointerType).filter(Boolean));
+  if (kinds.size === 0) return "unknown";
+  if (kinds.size > 1) return "mixed";
+  const kind = [...kinds][0];
+  return kind === "mouse" || kind === "touch" || kind === "pen"
+    ? kind
+    : "unknown";
 }
 
 export interface SessionSummary {
@@ -43,6 +89,8 @@ export interface SessionSummary {
   medianDistancePct: number;
   hits: number;
   totalTaps: number;
+  /** Optional because sessions saved by older versions lack it. */
+  input?: InputKind;
 }
 
 export function median(values: number[]): number {
@@ -73,6 +121,7 @@ export function summarize(taps: TapRecord[]): SessionSummary {
     medianDistancePct: round1(median(taps.map((t) => t.distancePct))),
     hits: taps.filter((t) => t.hit).length,
     totalTaps: taps.length,
+    input: dominantInput(taps),
   };
 }
 

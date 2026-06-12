@@ -6,6 +6,8 @@ import {
   TARGETS_PER_ROUND,
   type SessionSummary,
   type TapRecord,
+  inputLabel,
+  inputPhrase,
   loadHistory,
   median,
   pickTargets,
@@ -99,6 +101,7 @@ function onCellTap(char: string, event: PointerEvent) {
     distancePx,
     distancePct,
     hit: char === expected,
+    pointerType: event.pointerType,
   });
   lastTime = now;
 
@@ -150,7 +153,7 @@ function resultsText(): string {
   if (!s) return "";
   return (
     `Eye 👁 Brain 🧠 Hand ✋ snapshot:\n` +
-    `⏱ ${s.medianDelayMs} ms median tap delay\n` +
+    `⏱ ${s.medianDelayMs} ms median ${inputPhrase(s.input)} delay\n` +
     `🎯 ${s.medianDistancePx} px median distance from center\n` +
     `✅ ${s.hits}/${s.totalTaps} correct\n` +
     `Get your snapshot: ${SITE_URL}`
@@ -231,6 +234,7 @@ function clearHistory() {
               <th>Median delay</th>
               <th>Median accuracy</th>
               <th>Hits</th>
+              <th>Input</th>
             </tr>
           </thead>
           <tbody>
@@ -239,6 +243,7 @@ function clearHistory() {
               <td>{{ s.medianDelayMs }} ms</td>
               <td>{{ s.medianDistancePx }} px</td>
               <td>{{ s.hits }}/{{ s.totalTaps }}</td>
+              <td>{{ inputLabel(s.input) }}</td>
             </tr>
           </tbody>
         </table>
@@ -283,7 +288,9 @@ function clearHistory() {
       <div class="stat-cards">
         <div class="stat-card">
           <div class="stat-value">{{ Math.round(medianDelay) }} ms</div>
-          <div class="stat-label">median tap delay</div>
+          <div class="stat-label">
+            median {{ inputPhrase(summary?.input) }} delay
+          </div>
           <div class="stat-sub">
             best {{ Math.round(bestDelay) }} · worst
             {{ Math.round(worstDelay) }}
@@ -348,6 +355,7 @@ function clearHistory() {
               <th>Median delay</th>
               <th>Median accuracy</th>
               <th>Hits</th>
+              <th>Input</th>
             </tr>
           </thead>
           <tbody>
@@ -356,6 +364,7 @@ function clearHistory() {
               <td>{{ s.medianDelayMs }} ms</td>
               <td>{{ s.medianDistancePx }} px</td>
               <td>{{ s.hits }}/{{ s.totalTaps }}</td>
+              <td>{{ inputLabel(s.input) }}</td>
             </tr>
           </tbody>
         </table>
