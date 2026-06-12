@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   LETTERS,
   ROUNDS,
@@ -38,6 +38,31 @@ const displayChars = ref<string[]>([...gridChars.value]);
 const gridEl = ref<HTMLElement | null>(null);
 let lastTime = 0;
 let shuffleTimer = 0;
+
+// True when part of the grid is outside the viewport (e.g. phone landscape).
+const gridClipped = ref(false);
+
+function checkGridFits() {
+  // setTimeout instead of requestAnimationFrame: rAF doesn't fire in
+  // background/hidden windows, and we measure after the DOM settles anyway.
+  setTimeout(() => {
+    const el = gridEl.value;
+    if (!el) {
+      gridClipped.value = false;
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    gridClipped.value =
+      r.bottom > window.innerHeight + 1 ||
+      r.top < -1 ||
+      r.right > window.innerWidth + 1 ||
+      r.left < -1;
+  }, 50);
+}
+
+watch(phase, checkGridFits);
+onMounted(() => window.addEventListener("resize", checkGridFits));
+onBeforeUnmount(() => window.removeEventListener("resize", checkGridFits));
 
 function startGame() {
   taps.value = [];
@@ -137,7 +162,11 @@ const pastSessions = computed(() =>
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+  return (
+    d.toLocaleDateString() +
+    " " +
+    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 function goHome() {
@@ -227,26 +256,28 @@ function clearHistory() {
 
       <div v-if="pastSessions.length" class="history">
         <h2>Past sessions</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Median delay</th>
-              <th>Median accuracy</th>
-              <th>Hits</th>
-              <th>Input</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in pastSessions" :key="s.date">
-              <td>{{ formatDate(s.date) }}</td>
-              <td>{{ s.medianDelayMs }} ms</td>
-              <td>{{ s.medianDistancePx }} px</td>
-              <td>{{ s.hits }}/{{ s.totalTaps }}</td>
-              <td>{{ inputLabel(s.input) }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Median delay</th>
+                <th>Median accuracy</th>
+                <th>Hits</th>
+                <th>Input</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in pastSessions" :key="s.date">
+                <td>{{ formatDate(s.date) }}</td>
+                <td>{{ s.medianDelayMs }} ms</td>
+                <td>{{ s.medianDistancePx }} px</td>
+                <td>{{ s.hits }}/{{ s.totalTaps }}</td>
+                <td>{{ inputLabel(s.input) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <button class="ghost" @click="clearHistory">Clear history</button>
       </div>
     </section>
@@ -271,6 +302,11 @@ function clearHistory() {
           </template>
         </div>
       </header>
+
+      <div v-if="gridClipped" class="clip-warning">
+        ⚠️ Part of the grid is off-screen — rotate your phone or enlarge the
+        window so all letters are visible.
+      </div>
 
       <div ref="gridEl" class="grid" :class="{ scrambling: phase === 'shuffling' }">
         <button v-for="(char, i) in displayChars" :key="i" class="cell" :data-char="char"
@@ -316,26 +352,28 @@ function clearHistory() {
       </div>
 
       <h2>All taps</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Round</th>
-            <th>Target</th>
-            <th>Tapped</th>
-            <th>Delay</th>
-            <th>Distance</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(t, i) in taps" :key="i">
-            <td>{{ t.round }}.{{ t.tap }}</td>
-            <td>{{ t.expected }}</td>
-            <td :class="t.hit ? 'good' : 'bad'">{{ t.tapped }}</td>
-            <td>{{ Math.round(t.delayMs) }} ms</td>
-            <td>{{ round1(t.distancePx) }} px</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>Target</th>
+              <th>Tapped</th>
+              <th>Delay</th>
+              <th>Distance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(t, i) in taps" :key="i">
+              <td>{{ t.round }}.{{ t.tap }}</td>
+              <td>{{ t.expected }}</td>
+              <td :class="t.hit ? 'good' : 'bad'">{{ t.tapped }}</td>
+              <td>{{ Math.round(t.delayMs) }} ms</td>
+              <td>{{ round1(t.distancePx) }} px</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div class="actions">
         <button class="primary" @click="startGame">Play again</button>
@@ -348,26 +386,28 @@ function clearHistory() {
 
       <div v-if="pastSessions.length > 1" class="history">
         <h2>Past sessions</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Median delay</th>
-              <th>Median accuracy</th>
-              <th>Hits</th>
-              <th>Input</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in pastSessions" :key="s.date">
-              <td>{{ formatDate(s.date) }}</td>
-              <td>{{ s.medianDelayMs }} ms</td>
-              <td>{{ s.medianDistancePx }} px</td>
-              <td>{{ s.hits }}/{{ s.totalTaps }}</td>
-              <td>{{ inputLabel(s.input) }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Median delay</th>
+                <th>Median accuracy</th>
+                <th>Hits</th>
+                <th>Input</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in pastSessions" :key="s.date">
+                <td>{{ formatDate(s.date) }}</td>
+                <td>{{ s.medianDelayMs }} ms</td>
+                <td>{{ s.medianDistancePx }} px</td>
+                <td>{{ s.hits }}/{{ s.totalTaps }}</td>
+                <td>{{ inputLabel(s.input) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>
@@ -390,6 +430,7 @@ function clearHistory() {
   margin: 0 auto;
   width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .logo {
@@ -498,7 +539,42 @@ button.ghost {
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   width: 100%;
-  max-width: 480px;
+  /* The grid is square (1:1 cells), so capping width by the viewport height
+     keeps the whole thing on screen in landscape. */
+  max-width: min(480px, calc(100vh - 210px));
+}
+
+/* Short viewports (phone landscape): compact the HUD, give the grid more room. */
+@media (max-height: 540px) {
+  .hud {
+    padding: 2px 0 8px;
+  }
+
+  .round-label {
+    margin-bottom: 4px;
+  }
+
+  .target {
+    width: 40px;
+    line-height: 40px;
+    font-size: 1.6rem;
+    border-radius: 8px;
+  }
+
+  .grid {
+    max-width: min(480px, calc(100vh - 130px));
+  }
+}
+
+.clip-warning {
+  background: rgba(255, 183, 77, 0.12);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
 /* During the start animation the letters are faint and not tappable. */
@@ -598,10 +674,16 @@ button.ghost {
   margin-top: 6px;
 }
 
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
   max-width: 480px;
+  margin: 0 auto;
   font-size: 0.85rem;
 }
 
@@ -610,6 +692,18 @@ td {
   padding: 6px 10px;
   text-align: center;
   border-bottom: 1px solid var(--cell-border);
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  table {
+    font-size: 0.75rem;
+  }
+
+  th,
+  td {
+    padding: 5px 6px;
+  }
 }
 
 th {
