@@ -1,10 +1,20 @@
 // Core types and pure helpers for the Eye-Brain-Hand snapshot game.
 
-export const GRID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("");
-export const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+// 5x5 grid: the alphabet minus Z.
+export const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXY".split("");
 
 export const ROUNDS = 3;
 export const TARGETS_PER_ROUND = 3;
+
+/** Fisher-Yates shuffle, returns a new array. */
+export function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
 
 export interface TapRecord {
   /** 1-based round number */

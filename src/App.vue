@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  GRID_CHARS,
+  LETTERS,
   ROUNDS,
   TARGETS_PER_ROUND,
   type SessionSummary,
@@ -11,10 +11,14 @@ import {
   pickTargets,
   round1,
   saveToHistory,
+  shuffle,
   summarize,
 } from "./game";
 
-type Phase = "intro" | "playing" | "results";
+type Phase = "intro" | "shuffling" | "playing" | "results";
+
+const SHUFFLE_MS = 600;
+const SHUFFLE_TICK_MS = 75;
 
 const phase = ref<Phase>("intro");
 const round = ref(0); // 1-based once playing
@@ -24,15 +28,36 @@ const taps = ref<TapRecord[]>([]);
 const history = ref<SessionSummary[]>(loadHistory());
 const summary = ref<SessionSummary | null>(null);
 
+// The grid layout for this play: shuffled once per game, constant across rounds.
+const gridChars = ref<string[]>(shuffle(LETTERS));
+// What the cells currently display (scrambles during the start animation).
+const displayChars = ref<string[]>([...gridChars.value]);
+
 const gridEl = ref<HTMLElement | null>(null);
 let lastTime = 0;
+let shuffleTimer = 0;
 
 function startGame() {
   taps.value = [];
   summary.value = null;
   round.value = 0;
-  phase.value = "playing";
-  nextRound();
+  targets.value = [];
+  gridChars.value = shuffle(LETTERS);
+  phase.value = "shuffling";
+
+  // Scramble the visible letters for a moment — when they settle, time starts.
+  const started = performance.now();
+  clearInterval(shuffleTimer);
+  shuffleTimer = window.setInterval(() => {
+    if (performance.now() - started >= SHUFFLE_MS) {
+      clearInterval(shuffleTimer);
+      displayChars.value = [...gridChars.value];
+      phase.value = "playing";
+      nextRound();
+    } else {
+      displayChars.value = shuffle(LETTERS);
+    }
+  }, SHUFFLE_TICK_MS);
 }
 
 function nextRound() {
@@ -161,30 +186,30 @@ function clearHistory() {
       </div>
     </section>
 
-    <!-- Playing -->
-    <section v-else-if="phase === 'playing'" class="screen playing">
+    <!-- Playing (including the pre-round shuffle animation) -->
+    <section v-else-if="phase === 'shuffling' || phase === 'playing'" class="screen playing">
       <header class="hud">
-        <div class="round-label">Round {{ round }}/{{ ROUNDS }}</div>
+        <div class="round-label">
+          {{ phase === "shuffling" ? "Get ready…" : `Round ${round}/${ROUNDS}` }}
+        </div>
         <div class="targets">
-          <span
-            v-for="(t, i) in targets"
-            :key="round + '-' + i"
-            class="target"
-            :class="{ done: i < targetIndex, current: i === targetIndex }"
-          >
-            {{ t }}
-          </span>
+          <template v-if="phase === 'shuffling'">
+            <span v-for="i in TARGETS_PER_ROUND" :key="'placeholder-' + i" class="target placeholder">
+              ?
+            </span>
+          </template>
+          <template v-else>
+            <span v-for="(t, i) in targets" :key="round + '-' + i" class="target"
+              :class="{ done: i < targetIndex, current: i === targetIndex }">
+              {{ t }}
+            </span>
+          </template>
         </div>
       </header>
 
-      <div ref="gridEl" class="grid">
-        <button
-          v-for="char in GRID_CHARS"
-          :key="char"
-          class="cell"
-          :data-char="char"
-          @pointerdown="onCellTap(char, $event)"
-        >
+      <div ref="gridEl" class="grid" :class="{ scrambling: phase === 'shuffling' }">
+        <button v-for="(char, i) in displayChars" :key="i" class="cell" :data-char="char"
+          @pointerdown="onCellTap(char, $event)">
           <span class="glyph">{{ char }}</span>
           <span class="dot"></span>
         </button>
@@ -383,12 +408,30 @@ button.ghost {
   outline: 2px solid var(--accent);
 }
 
+.target.placeholder {
+  color: var(--dim);
+  opacity: 0.5;
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   width: 100%;
   max-width: 480px;
+}
+
+/* During the start animation the letters are faint and not tappable. */
+.grid.scrambling {
+  pointer-events: none;
+}
+
+.grid.scrambling .glyph {
+  opacity: 0.3;
+}
+
+.grid.scrambling .dot {
+  opacity: 0.4;
 }
 
 .cell {
@@ -398,7 +441,7 @@ button.ghost {
   border-radius: 8px;
   background: var(--cell);
   color: var(--text);
-  font-size: clamp(1rem, 4.5vw, 1.5rem);
+  font-size: clamp(1.1rem, 5.5vw, 1.7rem);
   font-weight: 600;
   display: flex;
   align-items: center;
