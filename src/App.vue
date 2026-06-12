@@ -1,0 +1,495 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import {
+  GRID_CHARS,
+  ROUNDS,
+  TARGETS_PER_ROUND,
+  type SessionSummary,
+  type TapRecord,
+  loadHistory,
+  median,
+  pickTargets,
+  round1,
+  saveToHistory,
+  summarize,
+} from "./game";
+
+type Phase = "intro" | "playing" | "results";
+
+const phase = ref<Phase>("intro");
+const round = ref(0); // 1-based once playing
+const targets = ref<string[]>([]);
+const targetIndex = ref(0); // which of the 3 targets is next
+const taps = ref<TapRecord[]>([]);
+const history = ref<SessionSummary[]>(loadHistory());
+const summary = ref<SessionSummary | null>(null);
+
+const gridEl = ref<HTMLElement | null>(null);
+let lastTime = 0;
+
+function startGame() {
+  taps.value = [];
+  summary.value = null;
+  round.value = 0;
+  phase.value = "playing";
+  nextRound();
+}
+
+function nextRound() {
+  round.value += 1;
+  targets.value = pickTargets(TARGETS_PER_ROUND);
+  targetIndex.value = 0;
+  // The clock for the round's first tap starts when the targets appear.
+  requestAnimationFrame(() => {
+    lastTime = performance.now();
+  });
+}
+
+function onCellTap(char: string, event: PointerEvent) {
+  if (phase.value !== "playing") return;
+  event.preventDefault();
+
+  const now = performance.now();
+  const expected = targets.value[targetIndex.value];
+  const cell = gridEl.value?.querySelector<HTMLElement>(
+    `[data-char="${expected}"]`,
+  );
+  let distancePx = 0;
+  let distancePct = 0;
+  if (cell) {
+    const rect = cell.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    distancePx = Math.hypot(event.clientX - cx, event.clientY - cy);
+    const halfDiagonal = Math.hypot(rect.width / 2, rect.height / 2);
+    distancePct = (distancePx / halfDiagonal) * 100;
+  }
+
+  taps.value.push({
+    round: round.value,
+    tap: targetIndex.value + 1,
+    expected,
+    tapped: char,
+    delayMs: now - lastTime,
+    distancePx,
+    distancePct,
+    hit: char === expected,
+  });
+  lastTime = now;
+
+  if (targetIndex.value + 1 < TARGETS_PER_ROUND) {
+    targetIndex.value += 1;
+  } else if (round.value < ROUNDS) {
+    nextRound();
+  } else {
+    finishGame();
+  }
+}
+
+function finishGame() {
+  const result = summarize(taps.value);
+  summary.value = result;
+  history.value = saveToHistory(result);
+  phase.value = "results";
+}
+
+const delays = computed(() => taps.value.map((t) => t.delayMs));
+const distances = computed(() => taps.value.map((t) => t.distancePx));
+
+const bestDelay = computed(() => Math.min(...delays.value));
+const worstDelay = computed(() => Math.max(...delays.value));
+const bestDistance = computed(() => Math.min(...distances.value));
+const worstDistance = computed(() => Math.max(...distances.value));
+const medianDelay = computed(() => median(delays.value));
+const medianDistance = computed(() => median(distances.value));
+
+const pastSessions = computed(() =>
+  [...history.value].reverse().slice(0, 20),
+);
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+}
+
+function clearHistory() {
+  if (!confirm("Delete all saved sessions?")) return;
+  localStorage.removeItem("eye-brain-hand-history");
+  history.value = [];
+}
+</script>
+
+<template>
+  <main class="app">
+    <!-- Intro -->
+    <section v-if="phase === 'intro'" class="screen intro">
+      <h1>Eye 👁 Brain 🧠 Hand ✋</h1>
+      <p>
+        Three letters appear at the top. Tap them on the grid below,
+        <strong>in order</strong>, aiming for the small square at the center of
+        each cell. You'll do {{ ROUNDS }} rounds of
+        {{ TARGETS_PER_ROUND }} letters.
+      </p>
+      <p class="dim">
+        Every tap counts — speed and pixel accuracy are both measured. Play
+        once a year to track your decline, or mid-marathon to watch your brain
+        melt in real time.
+      </p>
+      <button class="primary" @click="startGame">Start</button>
+
+      <div v-if="pastSessions.length" class="history">
+        <h2>Past sessions</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Median delay</th>
+              <th>Median accuracy</th>
+              <th>Hits</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in pastSessions" :key="s.date">
+              <td>{{ formatDate(s.date) }}</td>
+              <td>{{ s.medianDelayMs }} ms</td>
+              <td>{{ s.medianDistancePx }} px</td>
+              <td>{{ s.hits }}/{{ s.totalTaps }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="ghost" @click="clearHistory">Clear history</button>
+      </div>
+    </section>
+
+    <!-- Playing -->
+    <section v-else-if="phase === 'playing'" class="screen playing">
+      <header class="hud">
+        <div class="round-label">Round {{ round }}/{{ ROUNDS }}</div>
+        <div class="targets">
+          <span
+            v-for="(t, i) in targets"
+            :key="round + '-' + i"
+            class="target"
+            :class="{ done: i < targetIndex, current: i === targetIndex }"
+          >
+            {{ t }}
+          </span>
+        </div>
+      </header>
+
+      <div ref="gridEl" class="grid">
+        <button
+          v-for="char in GRID_CHARS"
+          :key="char"
+          class="cell"
+          :data-char="char"
+          @pointerdown="onCellTap(char, $event)"
+        >
+          <span class="glyph">{{ char }}</span>
+          <span class="dot"></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section v-else class="screen results">
+      <h1>Your snapshot</h1>
+
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-value">{{ Math.round(medianDelay) }} ms</div>
+          <div class="stat-label">median tap delay</div>
+          <div class="stat-sub">
+            best {{ Math.round(bestDelay) }} · worst
+            {{ Math.round(worstDelay) }}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ round1(medianDistance) }} px</div>
+          <div class="stat-label">median distance from center</div>
+          <div class="stat-sub">
+            best {{ round1(bestDistance) }} · worst
+            {{ round1(worstDistance) }}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">
+            {{ summary?.hits }}/{{ summary?.totalTaps }}
+          </div>
+          <div class="stat-label">correct cells</div>
+          <div class="stat-sub">
+            {{ round1(summary?.medianDistancePct ?? 0) }}% of cell radius
+          </div>
+        </div>
+      </div>
+
+      <h2>All taps</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Round</th>
+            <th>Target</th>
+            <th>Tapped</th>
+            <th>Delay</th>
+            <th>Distance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(t, i) in taps" :key="i">
+            <td>{{ t.round }}.{{ t.tap }}</td>
+            <td>{{ t.expected }}</td>
+            <td :class="t.hit ? 'good' : 'bad'">{{ t.tapped }}</td>
+            <td>{{ Math.round(t.delayMs) }} ms</td>
+            <td>{{ round1(t.distancePx) }} px</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button class="primary" @click="startGame">Play again</button>
+
+      <div v-if="pastSessions.length > 1" class="history">
+        <h2>Past sessions</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Median delay</th>
+              <th>Median accuracy</th>
+              <th>Hits</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in pastSessions" :key="s.date">
+              <td>{{ formatDate(s.date) }}</td>
+              <td>{{ s.medianDelayMs }} ms</td>
+              <td>{{ s.medianDistancePx }} px</td>
+              <td>{{ s.hits }}/{{ s.totalTaps }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</template>
+
+<style scoped>
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+  overflow-y: auto;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 12px 0;
+  text-align: center;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 20px 0 8px;
+}
+
+p {
+  margin: 8px 0;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.dim {
+  color: var(--dim);
+  font-size: 0.9rem;
+}
+
+button.primary {
+  margin-top: 16px;
+  padding: 14px 48px;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #1a1408;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.primary:active {
+  transform: scale(0.97);
+}
+
+button.ghost {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border: 1px solid var(--cell-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+/* ---- Playing ---- */
+.playing {
+  justify-content: flex-start;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hud {
+  width: 100%;
+  text-align: center;
+  padding: 8px 0 16px;
+}
+
+.round-label {
+  color: var(--dim);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.targets {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.target {
+  font-size: 2.6rem;
+  font-weight: 800;
+  width: 64px;
+  line-height: 64px;
+  border-radius: 12px;
+  background: var(--panel);
+  transition: opacity 0.15s;
+}
+
+.target.done {
+  opacity: 0.25;
+}
+
+.target.current {
+  outline: 2px solid var(--accent);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.cell {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid var(--cell-border);
+  border-radius: 8px;
+  background: var(--cell);
+  color: var(--text);
+  font-size: clamp(1rem, 4.5vw, 1.5rem);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.glyph {
+  opacity: 0.85;
+}
+
+.dot {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  left: calc(50% - 1.5px);
+  top: calc(50% - 1.5px);
+  background: var(--accent);
+}
+
+/* ---- Results & tables ---- */
+.stat-cards {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.stat-card {
+  flex: 1 1 140px;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.stat-label {
+  color: var(--dim);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.stat-sub {
+  font-size: 0.75rem;
+  color: var(--dim);
+  margin-top: 6px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 480px;
+  font-size: 0.85rem;
+}
+
+th,
+td {
+  padding: 6px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--cell-border);
+}
+
+th {
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.good {
+  color: var(--good);
+  font-weight: 700;
+}
+
+.bad {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.history {
+  margin-top: 24px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+</style>
