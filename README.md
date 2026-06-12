@@ -1,10 +1,10 @@
 # Eye 👁 Brain 🧠 Hand ✋
 
-A tiny speed-and-accuracy snapshot game. Three letters appear at the top; tap
-them in order on a 5×5 grid of A–Y (sorry, Z), aiming for the crosshair-marked
-center of each cell. The grid is shuffled once per play — a 600 ms scramble
-animation signals that the clock is about to start — and stays fixed across the
-three rounds of three taps. Then a report:
+A tiny speed-and-accuracy snapshot game for cognitive measurement. Three letters
+appear at the top; tap them in order on a 5×5 grid of A–Y (sorry, Z), aiming for
+the crosshair-marked center of each cell. The grid is shuffled once per play — a
+600 ms scramble animation signals that the clock is about to start — and stays
+fixed across the three rounds of three taps. Then a report:
 
 - **Median tap delay** (plus best/worst)
 - **Median distance from cell center** in pixels (plus best/worst)
@@ -14,6 +14,10 @@ three rounds of three taps. Then a report:
 
 Play it once a year to chart your mental decline, or mid-marathon to watch your
 coordination dissolve in real time.
+
+## Play
+
+https://ubershmekel.github.io/eye-brain-hand/
 
 ## Development
 
