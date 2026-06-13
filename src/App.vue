@@ -181,11 +181,12 @@ function resultsText(): string {
   const s = summary.value;
   if (!s) return "";
   return (
-    `Eye 👁 Brain 🧠 Hand ✋ snapshot:\n` +
+    `Eye 👁 Brain 🧠 Hand ✋ score:\n` +
     `⏱ ${s.medianDelayMs} ms median ${inputPhrase(s.input)} delay\n` +
     `🎯 ${s.medianDistancePx} px median distance from center\n` +
     `✅ ${s.hits}/${s.totalTaps} correct\n` +
-    `Get your snapshot: ${SITE_URL}`
+    (s.device ? `${s.device}\n` : "") +
+    `Get your score: ${SITE_URL}`
   );
 }
 
@@ -320,6 +321,7 @@ function clearHistory() {
     <!-- Results -->
     <section v-else class="screen results">
       <h1>Your snapshot</h1>
+      <p v-if="summary?.device" class="dim device-line">{{ summary.device }}</p>
 
       <div class="stat-cards">
         <div class="stat-card">
@@ -626,6 +628,11 @@ button.ghost {
 }
 
 /* ---- Results & tables ---- */
+.device-line {
+  margin-top: -6px;
+  font-size: 0.8rem;
+}
+
 .actions {
   display: flex;
   align-items: center;

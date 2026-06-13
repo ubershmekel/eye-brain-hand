@@ -71,6 +71,54 @@ export function inputPhrase(input: string | undefined): string {
   }
 }
 
+/**
+ * Best-effort device description, e.g. "📱 Safari on iPhone (iOS 18)" or
+ * "💻 Chrome on Windows PC". Browsers hide exact iPhone models, but Android
+ * usually exposes its model, and OS/browser are reliable.
+ */
+export function deviceGuess(): string {
+  const ua = navigator.userAgent;
+  let device = "unknown device";
+  let mobile = false;
+
+  const android = ua.match(/Android ([\d.]+)(?:; ([^;)]+))?/);
+  if (/iPhone/.test(ua)) {
+    const v = ua.match(/iPhone OS (\d+)/);
+    device = v ? `iPhone (iOS ${v[1]})` : "iPhone";
+    mobile = true;
+  } else if (
+    /iPad/.test(ua) ||
+    (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+  ) {
+    device = "iPad";
+    mobile = true;
+  } else if (android) {
+    // Modern Chrome reduces the model to a literal "K"; ignore that.
+    const model = android[2]?.replace(/ Build\/.*/, "").trim();
+    const version = `Android ${parseInt(android[1])}`;
+    device = model && model !== "K" ? `${model} (${version})` : version;
+    mobile = true;
+  } else if (/Windows/.test(ua)) {
+    device = "Windows PC";
+  } else if (/CrOS/.test(ua)) {
+    device = "Chromebook";
+  } else if (/Macintosh/.test(ua)) {
+    device = "Mac";
+  } else if (/Linux/.test(ua)) {
+    device = "Linux PC";
+  }
+
+  let browser = "browser";
+  if (/Edg\//.test(ua)) browser = "Edge";
+  else if (/OPR\//.test(ua)) browser = "Opera";
+  else if (/SamsungBrowser\//.test(ua)) browser = "Samsung Internet";
+  else if (/Firefox\//.test(ua)) browser = "Firefox";
+  else if (/Chrome\//.test(ua)) browser = "Chrome";
+  else if (/Safari\//.test(ua)) browser = "Safari";
+
+  return `${mobile ? "📱" : "💻"} ${browser} on ${device}`;
+}
+
 export function dominantInput(taps: TapRecord[]): InputKind {
   const kinds = new Set(taps.map((t) => t.pointerType).filter(Boolean));
   if (kinds.size === 0) return "unknown";
@@ -91,6 +139,8 @@ export interface SessionSummary {
   totalTaps: number;
   /** Optional because sessions saved by older versions lack it. */
   input?: InputKind;
+  /** Best-effort device description; optional for older saved sessions. */
+  device?: string;
 }
 
 export function median(values: number[]): number {
@@ -122,6 +172,7 @@ export function summarize(taps: TapRecord[]): SessionSummary {
     hits: taps.filter((t) => t.hit).length,
     totalTaps: taps.length,
     input: dominantInput(taps),
+    device: deviceGuess(),
   };
 }
 
