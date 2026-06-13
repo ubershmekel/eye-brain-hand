@@ -338,6 +338,9 @@ function clearHistory() {
           <div class="stat-value">{{ round1(medianDistance) }} px</div>
           <div class="stat-label">median distance from center</div>
           <div class="stat-sub">
+            {{ round1(summary?.medianDistancePct ?? 0) }}% of cell radius
+          </div>
+          <div class="stat-sub">
             best {{ round1(bestDistance) }} · worst
             {{ round1(worstDistance) }}
           </div>
@@ -346,11 +349,17 @@ function clearHistory() {
           <div class="stat-value">
             {{ summary?.hits }}/{{ summary?.totalTaps }}
           </div>
-          <div class="stat-label">correct cells</div>
-          <div class="stat-sub">
-            {{ round1(summary?.medianDistancePct ?? 0) }}% of cell radius
-          </div>
+          <div class="stat-label">correct letters</div>
         </div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" @click="startGame">Play again</button>
+        <button v-if="canShare" class="ghost" @click="shareResults">
+          📤 Share
+        </button>
+        <button class="ghost" @click="copyResults">{{ copyLabel }}</button>
+        <button class="ghost" @click="goHome">🏠 Home</button>
       </div>
 
       <h2>All taps</h2>
@@ -375,15 +384,6 @@ function clearHistory() {
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <div class="actions">
-        <button class="primary" @click="startGame">Play again</button>
-        <button v-if="canShare" class="ghost" @click="shareResults">
-          📤 Share
-        </button>
-        <button class="ghost" @click="copyResults">{{ copyLabel }}</button>
-        <button class="ghost" @click="goHome">🏠 Home</button>
       </div>
 
       <div v-if="pastSessions.length > 1" class="history">
