@@ -684,6 +684,9 @@ button.ghost {
 .table-wrap {
   width: 100%;
   overflow-x: auto;
+  /* overflow != visible removes the implicit min-height, which lets iOS
+     Safari squish this flex child to zero height — forbid shrinking. */
+  flex-shrink: 0;
 }
 
 table {
