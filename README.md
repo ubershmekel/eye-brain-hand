@@ -6,7 +6,7 @@ the crosshair-marked center of each cell. The grid is shuffled once per play —
 600 ms scramble animation signals that the clock is about to start — and stays
 fixed across the three rounds of three taps. Then a report:
 
-- **Median tap delay** (plus best/worst)
+- **Average tap delay** across all nine taps (plus best/worst)
 - **Median distance from cell center** in pixels (plus best/worst)
 - **Hit rate** (did you tap the right cell at all)
 - A table of all nine taps, and a history of past sessions (stored in
@@ -14,6 +14,12 @@ fixed across the three rounds of three taps. Then a report:
 
 Play it once a year to chart your mental decline, or mid-marathon to watch your
 coordination dissolve in real time.
+
+The delay score deliberately uses the arithmetic average, not the median. Each
+round's first delay includes the time spent locating its three target letters;
+the next two taps can then be nearly instantaneous. With nine taps total, those
+six fast taps would dominate the median and hide most of the visual-search time.
+The average keeps all three first-tap delays in the score.
 
 ## Play
 

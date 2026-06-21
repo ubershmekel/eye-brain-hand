@@ -132,7 +132,7 @@ export function dominantInput(taps: TapRecord[]): InputKind {
 export interface SessionSummary {
   /** ISO timestamp of when the session finished */
   date: string;
-  medianDelayMs: number;
+  averageDelayMs: number;
   medianDistancePx: number;
   medianDistancePct: number;
   hits: number;
@@ -141,6 +141,20 @@ export interface SessionSummary {
   input?: InputKind;
   /** Best-effort device description; optional for older saved sessions. */
   device?: string;
+}
+
+/** Sessions saved before delay scoring changed from median to average. */
+export interface LegacySessionSummary
+  extends Omit<SessionSummary, "averageDelayMs"> {
+  medianDelayMs: number;
+  averageDelayMs?: never;
+}
+
+export type StoredSessionSummary = SessionSummary | LegacySessionSummary;
+
+export function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 export function median(values: number[]): number {
@@ -166,7 +180,7 @@ export function pickTargets(count: number): string[] {
 export function summarize(taps: TapRecord[]): SessionSummary {
   return {
     date: new Date().toISOString(),
-    medianDelayMs: Math.round(median(taps.map((t) => t.delayMs))),
+    averageDelayMs: Math.round(average(taps.map((t) => t.delayMs))),
     medianDistancePx: round1(median(taps.map((t) => t.distancePx))),
     medianDistancePct: round1(median(taps.map((t) => t.distancePct))),
     hits: taps.filter((t) => t.hit).length,
@@ -182,16 +196,16 @@ export function round1(n: number): number {
 
 const HISTORY_KEY = "eye-brain-hand-history";
 
-export function loadHistory(): SessionSummary[] {
+export function loadHistory(): StoredSessionSummary[] {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
-    return raw ? (JSON.parse(raw) as SessionSummary[]) : [];
+    return raw ? (JSON.parse(raw) as StoredSessionSummary[]) : [];
   } catch {
     return [];
   }
 }
 
-export function saveToHistory(summary: SessionSummary): SessionSummary[] {
+export function saveToHistory(summary: SessionSummary): StoredSessionSummary[] {
   const history = loadHistory();
   history.push(summary);
   try {

@@ -5,7 +5,9 @@ import {
   ROUNDS,
   TARGETS_PER_ROUND,
   type SessionSummary,
+  type StoredSessionSummary,
   type TapRecord,
+  average,
   inputLabel,
   inputPhrase,
   loadHistory,
@@ -27,7 +29,7 @@ const round = ref(0); // 1-based once playing
 const targets = ref<string[]>([]);
 const targetIndex = ref(0); // which of the 3 targets is next
 const taps = ref<TapRecord[]>([]);
-const history = ref<SessionSummary[]>(loadHistory());
+const history = ref<StoredSessionSummary[]>(loadHistory());
 const summary = ref<SessionSummary | null>(null);
 
 // The grid layout for this play: shuffled once per game, constant across rounds.
@@ -153,7 +155,7 @@ const bestDelay = computed(() => Math.min(...delays.value));
 const worstDelay = computed(() => Math.max(...delays.value));
 const bestDistance = computed(() => Math.min(...distances.value));
 const worstDistance = computed(() => Math.max(...distances.value));
-const medianDelay = computed(() => median(delays.value));
+const averageDelay = computed(() => average(delays.value));
 const medianDistance = computed(() => median(distances.value));
 
 const pastSessions = computed(() =>
@@ -169,6 +171,12 @@ function formatDate(iso: string): string {
   );
 }
 
+function formatHistoryDelay(session: StoredSessionSummary): string {
+  return "averageDelayMs" in session
+    ? `${session.averageDelayMs} ms avg`
+    : `${session.medianDelayMs} ms median`;
+}
+
 function goHome() {
   phase.value = "intro";
 }
@@ -182,7 +190,7 @@ function resultsText(): string {
   if (!s) return "";
   return (
     `Eye 👁 Brain 🧠 Hand ✋ score:\n` +
-    `⏱ ${s.medianDelayMs} ms median ${inputPhrase(s.input)} delay\n` +
+    `⏱ ${s.averageDelayMs} ms average ${inputPhrase(s.input)} delay\n` +
     `🎯 ${s.medianDistancePx} px median distance from center\n` +
     `✅ ${s.hits}/${s.totalTaps} correct\n` +
     (s.device ? `${s.device}\n` : "") +
@@ -262,7 +270,7 @@ function clearHistory() {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Median delay</th>
+                <th>Delay</th>
                 <th>Median accuracy</th>
                 <th>Hits</th>
                 <th>Input</th>
@@ -271,7 +279,7 @@ function clearHistory() {
             <tbody>
               <tr v-for="s in pastSessions" :key="s.date">
                 <td>{{ formatDate(s.date) }}</td>
-                <td>{{ s.medianDelayMs }} ms</td>
+                <td>{{ formatHistoryDelay(s) }}</td>
                 <td>{{ s.medianDistancePx }} px</td>
                 <td>{{ s.hits }}/{{ s.totalTaps }}</td>
                 <td>{{ inputLabel(s.input) }}</td>
@@ -325,9 +333,9 @@ function clearHistory() {
 
       <div class="stat-cards">
         <div class="stat-card">
-          <div class="stat-value">{{ Math.round(medianDelay) }} ms</div>
+          <div class="stat-value">{{ Math.round(averageDelay) }} ms</div>
           <div class="stat-label">
-            median {{ inputPhrase(summary?.input) }} delay
+            average {{ inputPhrase(summary?.input) }} delay
           </div>
           <div class="stat-sub">
             best {{ Math.round(bestDelay) }} · worst
@@ -393,7 +401,7 @@ function clearHistory() {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Median delay</th>
+                <th>Delay</th>
                 <th>Median accuracy</th>
                 <th>Hits</th>
                 <th>Input</th>
@@ -402,7 +410,7 @@ function clearHistory() {
             <tbody>
               <tr v-for="s in pastSessions" :key="s.date">
                 <td>{{ formatDate(s.date) }}</td>
-                <td>{{ s.medianDelayMs }} ms</td>
+                <td>{{ formatHistoryDelay(s) }}</td>
                 <td>{{ s.medianDistancePx }} px</td>
                 <td>{{ s.hits }}/{{ s.totalTaps }}</td>
                 <td>{{ inputLabel(s.input) }}</td>
